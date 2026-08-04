@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Sparkles, Radio, AlertCircle, LogOut } from 'lucide-react';
 import DrawingCanvas from '../components/DrawingCanvas';
-
 import ConfirmModal from '../components/ConfirmModal';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -19,6 +18,8 @@ export default function StudentProjection() {
   const [remotePointer, setRemotePointer] = useState(null);
   const [remoteStrokes, setRemoteStrokes] = useState([]);
   const [isConfirmExitOpen, setIsConfirmExitOpen] = useState(false);
+
+  const wsRef = useRef(null);
 
   // Validate code and retrieve presentation details
   useEffect(() => {
@@ -47,6 +48,50 @@ export default function StudentProjection() {
 
     validateCode();
   }, [code, navigate]);
+
+  // Connect to WebSocket Server & Receive Realtime Updates
+  useEffect(() => {
+    if (!code) return;
+
+    const wsHost = import.meta.env.VITE_WS_URL || `ws://${window.location.hostname}:3000/ws`;
+    const socket = new WebSocket(wsHost);
+    wsRef.current = socket;
+
+    socket.onopen = () => {
+      socket.send(JSON.stringify({
+        type: 'JOIN_SESSION',
+        payload: { code: code.toUpperCase(), role: 'student' }
+      }));
+    };
+
+    socket.onmessage = (e) => {
+      try {
+        const event = JSON.parse(e.data);
+
+        if (event.type === 'CHANGE_SLIDE') {
+          setCurrentSlide(event.payload.slide_index);
+          setRemoteStrokes([]);
+          setRemotePointer(null);
+        } else if (event.type === 'POINTER_MOVE') {
+          setRemotePointer({ x: event.payload.x, y: event.payload.y });
+        } else if (event.type === 'DRAW_STROKE') {
+          setRemoteStrokes(prev => [...prev, event.payload]);
+        } else if (event.type === 'CLEAR_CANVAS') {
+          setRemoteStrokes([]);
+        } else if (event.type === 'END_SESSION') {
+          setSessionEnded(true);
+        }
+      } catch (err) {
+        console.error('Error al procesar WS en estudiante:', err);
+      }
+    };
+
+    return () => {
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.close();
+      }
+    };
+  }, [code]);
 
   const slideUrl = presentationId
     ? `${API_URL}/uploads/${presentationId}/slide_${currentSlide}.png`
@@ -164,7 +209,7 @@ export default function StudentProjection() {
           slideTitle={title || `Diapositiva ${currentSlide}`}
           isReadOnly={true}
           remotePointer={remotePointer}
-          remoteStrokes={remoteStrokes}
+          strokes={remoteStrokes}
         />
       </main>
 

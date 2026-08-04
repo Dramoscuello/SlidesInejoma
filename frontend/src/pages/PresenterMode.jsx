@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { Sparkles, Copy, Power, ChevronLeft, ChevronRight, MousePointer, Edit2, Eraser, RotateCcw, Trash2, Check } from 'lucide-react';
 import SpectatorBadge from '../components/SpectatorBadge';
 import DrawingCanvas from '../components/DrawingCanvas';
-
 import ConfirmModal from '../components/ConfirmModal';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -26,6 +25,49 @@ export default function PresenterMode() {
 
   // Store strokes per slide: { [slideNumber]: ArrayOfStrokes }
   const [slideStrokes, setSlideStrokes] = useState({});
+
+  const wsRef = useRef(null);
+
+  // Connect to WebSocket Server & Join Presenter Room
+  useEffect(() => {
+    const wsHost = import.meta.env.VITE_WS_URL || `ws://${window.location.hostname}:3000/ws`;
+    const socket = new WebSocket(wsHost);
+    wsRef.current = socket;
+
+    socket.onopen = () => {
+      socket.send(JSON.stringify({
+        type: 'JOIN_SESSION',
+        payload: { code: code.toUpperCase(), role: 'presenter' }
+      }));
+    };
+
+    socket.onmessage = (e) => {
+      try {
+        const event = JSON.parse(e.data);
+        if (event.type === 'SPECTATOR_COUNT') {
+          setSpectatorCount(event.payload.count);
+        }
+      } catch (err) {
+        console.error('Error al procesar mensaje WS:', err);
+      }
+    };
+
+    return () => {
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.close();
+      }
+    };
+  }, [code]);
+
+  // Broadcast ChangeSlide event when slide index changes
+  useEffect(() => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'CHANGE_SLIDE',
+        payload: { slide_index: currentSlide }
+      }));
+    }
+  }, [currentSlide]);
 
   // Try to get totalSlides from searchParams (passed from GradeManagement)
   useEffect(() => {
@@ -61,16 +103,41 @@ export default function PresenterMode() {
     setIsConfirmEndOpen(true);
   };
 
-  const handlePointerMove = (pt) => {
-    setRemotePointer(pt);
+  const handleConfirmEndSession = () => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'END_SESSION' }));
+    }
+    setIsConfirmEndOpen(false);
+    navigate('/admin/grades');
   };
 
-  // Add a new stroke to the current slide
+  const handlePointerMove = (pt) => {
+    setRemotePointer(pt);
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && activeTool === 'pointer') {
+      wsRef.current.send(JSON.stringify({
+        type: 'POINTER_MOVE',
+        payload: { x: pt.x, y: pt.y }
+      }));
+    }
+  };
+
+  // Add a new stroke to the current slide and broadcast to students
   const handleStroke = (newStroke) => {
     setSlideStrokes(prev => ({
       ...prev,
       [currentSlide]: [...(prev[currentSlide] || []), newStroke]
     }));
+
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'DRAW_STROKE',
+        payload: {
+          points: newStroke.points,
+          color: newStroke.color,
+          width: newStroke.width
+        }
+      }));
+    }
   };
 
   // Replace strokes for the current slide (used by Eraser)
@@ -79,6 +146,21 @@ export default function PresenterMode() {
       ...prev,
       [currentSlide]: newStrokes
     }));
+
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'CLEAR_CANVAS' }));
+      // Re-broadcast remaining strokes
+      newStrokes.forEach(st => {
+        wsRef.current.send(JSON.stringify({
+          type: 'DRAW_STROKE',
+          payload: {
+            points: st.points,
+            color: st.color,
+            width: st.width
+          }
+        }));
+      });
+    }
   };
 
   // Undo last stroke on current slide
@@ -86,9 +168,25 @@ export default function PresenterMode() {
     setSlideStrokes(prev => {
       const currentList = prev[currentSlide] || [];
       if (currentList.length === 0) return prev;
+      const updatedList = currentList.slice(0, -1);
+
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: 'CLEAR_CANVAS' }));
+        updatedList.forEach(st => {
+          wsRef.current.send(JSON.stringify({
+            type: 'DRAW_STROKE',
+            payload: {
+              points: st.points,
+              color: st.color,
+              width: st.width
+            }
+          }));
+        });
+      }
+
       return {
         ...prev,
-        [currentSlide]: currentList.slice(0, -1)
+        [currentSlide]: updatedList
       };
     });
   };
@@ -99,6 +197,10 @@ export default function PresenterMode() {
       ...prev,
       [currentSlide]: []
     }));
+
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'CLEAR_CANVAS' }));
+    }
   };
 
   const currentStrokes = slideStrokes[currentSlide] || [];
@@ -426,10 +528,7 @@ export default function PresenterMode() {
         confirmText="Finalizar clase"
         cancelText="Cancelar"
         variant="danger"
-        onConfirm={() => {
-          setIsConfirmEndOpen(false);
-          navigate('/admin/grades');
-        }}
+        onConfirm={handleConfirmEndSession}
         onCancel={() => setIsConfirmEndOpen(false)}
       />
     </div>
