@@ -1,0 +1,227 @@
+/* Academic Ethereal Design Tokens & Global Styles */
+:root {
+  --color-brand-dark: #1e3323;       /* Dark Forest */
+  --color-brand-primary: #6b8a61;    /* Primary Sage Green */
+  --color-brand-light: #e9ede9;      /* Soft Sage Background */
+  --color-brand-card: #ffffff;       /* Card White */
+  --color-brand-accent: #d8e1d5;     /* Accent Soft Green */
+  --color-brand-hover: #56724d;
+  --color-text-main: #181d1a;
+  --color-text-muted: #6b7280;
+  --color-error: #dc2626;
+  --font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  --radius-lg: 24px;
+  --radius-md: 12px;
+  --radius-sm: 8px;
+  --shadow-subtle: 0px 4px 20px rgba(30, 51, 35, 0.05);
+  --shadow-modal: 0px 12px 32px rgba(30, 51, 35, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-family);
+  background-color: var(--color-brand-light);
+  color: var(--color-text-main);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  outline: none;
+}
+
+input {
+  font-family: inherit;
+  outline: none;
+}
+
+/* Glassmorphism Styles */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+}
+
+.glass-toolbar {
+  background: rgba(30, 51, 35, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+/* Card Component */
+.academic-card {
+  background-color: var(--color-brand-card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-subtle);
+  border: 1px solid var(--color-brand-accent);
+  padding: 2.5rem;
+}
+
+/* Button Variants */
+.btn-primary {
+  background-color: var(--color-brand-primary);
+  color: #ffffff;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1.5rem;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.btn-primary:hover {
+  background-color: var(--color-brand-hover);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background-color: var(--color-brand-accent);
+  color: var(--color-brand-dark);
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1.5rem;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.btn-secondary:hover {
+  background-color: #c4cfc0;
+}
+
+.btn-danger {
+  background-color: var(--color-error);
+  color: #ffffff;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1.25rem;
+  transition: all 0.2s ease;
+}
+
+.btn-danger:hover {
+  background-color: #b91c1c;
+}
+
+/* PIN Input 4 boxes */
+.pin-container {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin: 1.5rem 0;
+}
+
+.pin-box {
+  width: 3.5rem;
+  height: 4rem;
+  font-size: 2rem;
+  font-weight: 700;
+  text-align: center;
+  text-transform: uppercase;
+  background-color: var(--color-brand-light);
+  border: 2px solid var(--color-brand-accent);
+  border-radius: var(--radius-md);
+  color: var(--color-brand-dark);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.pin-box:focus {
+  border-color: var(--color-brand-primary);
+  box-shadow: 0 0 0 3px rgba(107, 138, 97, 0.2);
+  background-color: #ffffff;
+}
+
+/* Badge Component */
+.badge-live {
+  background-color: rgba(220, 38, 38, 0.1);
+  color: #dc2626;
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  padding: 0.35rem 0.85rem;
+  border-radius: 9999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.badge-code {
+  background-color: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  border: 1px dashed rgba(255, 255, 255, 0.4);
+  padding: 0.35rem 0.85rem;
+  border-radius: 9999px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+/* Modal Overlay */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 1rem;
+}
+
+/* Pulse animation for live indicator */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.animate-pulse {
+  animation: pulse-dot 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* ---- Responsive Mobile Styles ---- */
+@media (max-width: 600px) {
+  .academic-card {
+    padding: 1.5rem;
+    border-radius: var(--radius-md);
+  }
+
+  .pin-container {
+    gap: 0.6rem;
+    margin: 1rem 0;
+  }
+
+  .pin-box {
+    width: 3rem;
+    height: 3.5rem;
+    font-size: 1.5rem;
+  }
+
+  .btn-primary, .btn-secondary {
+    padding: 0.65rem 1rem;
+    font-size: 0.9rem;
+  }
+}
+

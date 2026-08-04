@@ -1,0 +1,28 @@
+# Git & Project Meta
+.git/
+.gitignore
+.dockerignore
+README.md
+
+# Dependencies & Build artifacts
+node_modules/
+frontend/node_modules/
+backend/target/
+target/
+frontend/dist/
+dist/
+
+# Uploaded Files & Dynamic Media
+uploads/*
+!uploads/.gitkeep
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Environment secrets
+.env
+.env.local
+
+# OS & Editor Files
+.DS_Store
+.vscode/
+.idea/
