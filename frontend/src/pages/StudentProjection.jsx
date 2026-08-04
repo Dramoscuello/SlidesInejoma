@@ -53,7 +53,8 @@ export default function StudentProjection() {
   useEffect(() => {
     if (!code) return;
 
-    const wsHost = import.meta.env.VITE_WS_URL || `ws://${window.location.hostname}:3000/ws`;
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsHost = import.meta.env.VITE_WS_URL || `${protocol}//${window.location.hostname}:3000/ws`;
     const socket = new WebSocket(wsHost);
     wsRef.current = socket;
 
@@ -69,13 +70,20 @@ export default function StudentProjection() {
         const event = JSON.parse(e.data);
 
         if (event.type === 'CHANGE_SLIDE') {
-          setCurrentSlide(event.payload.slide_index);
-          setRemoteStrokes([]);
-          setRemotePointer(null);
+          const newIndex = event.payload?.slide_index;
+          if (newIndex) {
+            setCurrentSlide(newIndex);
+            setRemoteStrokes([]);
+            setRemotePointer(null);
+          }
         } else if (event.type === 'POINTER_MOVE') {
-          setRemotePointer({ x: event.payload.x, y: event.payload.y });
+          if (event.payload && typeof event.payload.x === 'number') {
+            setRemotePointer({ x: event.payload.x, y: event.payload.y });
+          }
         } else if (event.type === 'DRAW_STROKE') {
-          setRemoteStrokes(prev => [...prev, event.payload]);
+          if (event.payload) {
+            setRemoteStrokes(prev => [...prev, event.payload]);
+          }
         } else if (event.type === 'CLEAR_CANVAS') {
           setRemoteStrokes([]);
         } else if (event.type === 'END_SESSION') {
@@ -87,7 +95,7 @@ export default function StudentProjection() {
     };
 
     return () => {
-      if (socket && socket.readyState === WebSocket.OPEN) {
+      if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
         socket.close();
       }
     };

@@ -59,28 +59,11 @@ pub struct AuthResponse {
     pub email: String,
 }
 
-// WebSocket Event Messages
+// WebSocket Universal Message Format
 #[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(tag = "type", content = "payload")]
-pub enum WsEvent {
-    #[serde(rename = "JOIN_SESSION")]
-    JoinSession { code: String, role: String },
-
-    #[serde(rename = "SPECTATOR_COUNT")]
-    SpectatorCount { count: usize },
-
-    #[serde(rename = "CHANGE_SLIDE")]
-    ChangeSlide { slide_index: u32 },
-
-    #[serde(rename = "POINTER_MOVE")]
-    PointerMove { x: f64, y: f64 },
-
-    #[serde(rename = "DRAW_STROKE")]
-    DrawStroke { points: serde_json::Value, color: String, width: u32 },
-
-    #[serde(rename = "CLEAR_CANVAS")]
-    ClearCanvas,
-
-    #[serde(rename = "END_SESSION")]
-    EndSession,
+pub struct WsMessage {
+    #[serde(rename = "type")]
+    pub msg_type: String,
+    #[serde(default)]
+    pub payload: serde_json::Value,
 }

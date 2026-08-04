@@ -7,9 +7,9 @@ use futures_util::{sink::SinkExt, stream::StreamExt};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tokio::sync::broadcast;
-use crate::models::WsEvent;
+use crate::models::WsMessage;
 
-type RoomTx = broadcast::Sender<WsEvent>;
+type RoomTx = broadcast::Sender<WsMessage>;
 
 #[derive(Clone, Default)]
 pub struct WsState {
@@ -33,18 +33,19 @@ pub async fn ws_handler(
 async fn handle_socket(socket: WebSocket, state: WsState) {
     let (mut ws_sender, mut ws_receiver) = socket.split();
     let mut current_code: Option<String> = None;
-    let mut room_rx: Option<broadcast::Receiver<WsEvent>> = None;
+    let mut is_student = false;
+    let mut room_rx: Option<broadcast::Receiver<WsMessage>> = None;
 
     loop {
         tokio::select! {
             // 1. Transmit events from room broadcast channel -> WebSocket client
-            Ok(event) = async {
+            Ok(msg) = async {
                 match room_rx {
                     Some(ref mut rx) => rx.recv().await,
                     None => futures_util::future::pending().await,
                 }
             } => {
-                if let Ok(json_text) = serde_json::to_string(&event) {
+                if let Ok(json_text) = serde_json::to_string(&msg) {
                     if ws_sender.send(Message::Text(json_text)).await.is_err() {
                         break;
                     }
@@ -52,88 +53,74 @@ async fn handle_socket(socket: WebSocket, state: WsState) {
             }
 
             // 2. Receive events from WebSocket client -> broadcast to room
-            msg = ws_receiver.next() => {
-                match msg {
+            incoming = ws_receiver.next() => {
+                match incoming {
                     Some(Ok(Message::Text(text))) => {
-                        if let Ok(event) = serde_json::from_str::<WsEvent>(&text) {
-                            match event {
-                                WsEvent::JoinSession { ref code, role: _ } => {
-                                    let room_code = code.to_uppercase();
-                                    current_code = Some(room_code.clone());
+                        if let Ok(ws_msg) = serde_json::from_str::<WsMessage>(&text) {
+                            match ws_msg.msg_type.as_str() {
+                                "JOIN_SESSION" => {
+                                    let code = ws_msg.payload["code"]
+                                        .as_str()
+                                        .unwrap_or_default()
+                                        .to_uppercase();
+                                    let role = ws_msg.payload["role"]
+                                        .as_str()
+                                        .unwrap_or("student");
 
-                                    let (tx, rx) = {
-                                        let mut rooms = state.rooms.lock().unwrap();
-                                        let tx = rooms
-                                            .entry(room_code.clone())
-                                            .or_insert_with(|| broadcast::channel(100).0)
-                                            .clone();
-                                        let rx = tx.subscribe();
-                                        (tx, rx)
-                                    };
+                                    if !code.is_empty() {
+                                        current_code = Some(code.clone());
+                                        if role == "student" {
+                                            is_student = true;
+                                        }
 
-                                    room_rx = Some(rx);
+                                        let (tx, rx) = {
+                                            let mut rooms = state.rooms.lock().unwrap();
+                                            let tx = rooms
+                                                .entry(code.clone())
+                                                .or_insert_with(|| broadcast::channel(100).0)
+                                                .clone();
+                                            let rx = tx.subscribe();
+                                            (tx, rx)
+                                        };
 
-                                    let count = {
-                                        let mut spectators = state.spectators.lock().unwrap();
-                                        let c = spectators.entry(room_code.clone()).or_insert(0);
-                                        *c += 1;
-                                        *c
-                                    };
+                                        room_rx = Some(rx);
 
-                                    let _ = tx.send(WsEvent::SpectatorCount { count });
-                                }
-                                WsEvent::ChangeSlide { slide_index } => {
-                                    if let Some(ref code) = current_code {
-                                        let rooms = state.rooms.lock().unwrap();
-                                        if let Some(tx) = rooms.get(code) {
-                                            let _ = tx.send(WsEvent::ChangeSlide { slide_index });
+                                        if is_student {
+                                            let count = {
+                                                let mut spectators = state.spectators.lock().unwrap();
+                                                let c = spectators.entry(code.clone()).or_insert(0);
+                                                *c += 1;
+                                                *c
+                                            };
+
+                                            let count_msg = WsMessage {
+                                                msg_type: "SPECTATOR_COUNT".to_string(),
+                                                payload: serde_json::json!({ "count": count }),
+                                            };
+                                            let _ = tx.send(count_msg);
                                         }
                                     }
                                 }
-                                WsEvent::PointerMove { x, y } => {
+                                _ => {
+                                    // Broadcast all events (CHANGE_SLIDE, POINTER_MOVE, DRAW_STROKE, CLEAR_CANVAS, END_SESSION)
                                     if let Some(ref code) = current_code {
                                         let rooms = state.rooms.lock().unwrap();
                                         if let Some(tx) = rooms.get(code) {
-                                            let _ = tx.send(WsEvent::PointerMove { x, y });
+                                            let _ = tx.send(ws_msg);
                                         }
                                     }
                                 }
-                                WsEvent::DrawStroke { points, color, width } => {
-                                    if let Some(ref code) = current_code {
-                                        let rooms = state.rooms.lock().unwrap();
-                                        if let Some(tx) = rooms.get(code) {
-                                            let _ = tx.send(WsEvent::DrawStroke { points, color, width });
-                                        }
-                                    }
-                                }
-                                WsEvent::ClearCanvas => {
-                                    if let Some(ref code) = current_code {
-                                        let rooms = state.rooms.lock().unwrap();
-                                        if let Some(tx) = rooms.get(code) {
-                                            let _ = tx.send(WsEvent::ClearCanvas);
-                                        }
-                                    }
-                                }
-                                WsEvent::EndSession => {
-                                    if let Some(ref code) = current_code {
-                                        let rooms = state.rooms.lock().unwrap();
-                                        if let Some(tx) = rooms.get(code) {
-                                            let _ = tx.send(WsEvent::EndSession);
-                                        }
-                                    }
-                                }
-                                _ => {}
                             }
                         }
                     }
-                    _ => break, // Client disconnected or error
+                    _ => break, // Client disconnected or socket closed
                 }
             }
         }
     }
 
     // Handle Client Disconnect
-    if let Some(code) = current_code {
+    if let (Some(code), true) = (current_code, is_student) {
         let count = {
             let mut spectators = state.spectators.lock().unwrap();
             let c = spectators.entry(code.clone()).or_insert(1);
@@ -145,7 +132,11 @@ async fn handle_socket(socket: WebSocket, state: WsState) {
 
         let rooms = state.rooms.lock().unwrap();
         if let Some(tx) = rooms.get(&code) {
-            let _ = tx.send(WsEvent::SpectatorCount { count });
+            let count_msg = WsMessage {
+                msg_type: "SPECTATOR_COUNT".to_string(),
+                payload: serde_json::json!({ "count": count }),
+            };
+            let _ = tx.send(count_msg);
         }
     }
 }

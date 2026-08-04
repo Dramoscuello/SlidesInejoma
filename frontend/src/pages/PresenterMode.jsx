@@ -30,7 +30,8 @@ export default function PresenterMode() {
 
   // Connect to WebSocket Server & Join Presenter Room
   useEffect(() => {
-    const wsHost = import.meta.env.VITE_WS_URL || `ws://${window.location.hostname}:3000/ws`;
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsHost = import.meta.env.VITE_WS_URL || `${protocol}//${window.location.hostname}:3000/ws`;
     const socket = new WebSocket(wsHost);
     wsRef.current = socket;
 
@@ -44,7 +45,7 @@ export default function PresenterMode() {
     socket.onmessage = (e) => {
       try {
         const event = JSON.parse(e.data);
-        if (event.type === 'SPECTATOR_COUNT') {
+        if (event.type === 'SPECTATOR_COUNT' && event.payload && typeof event.payload.count === 'number') {
           setSpectatorCount(event.payload.count);
         }
       } catch (err) {
@@ -53,7 +54,7 @@ export default function PresenterMode() {
     };
 
     return () => {
-      if (socket && socket.readyState === WebSocket.OPEN) {
+      if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
         socket.close();
       }
     };
