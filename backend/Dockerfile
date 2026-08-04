@@ -1,5 +1,5 @@
-# ---- Build Stage (Usando la versión más reciente y estable de Rust) ----
-FROM rust:latest AS builder
+# ---- Build Stage (Usando la versión estable de Rust basada en Debian Bookworm) ----
+FROM rust:bookworm AS builder
 
 RUN apt-get update && apt-get install -y \
     pkg-config libssl-dev gcc \
@@ -11,7 +11,7 @@ COPY src ./src
 
 RUN cargo build --release
 
-# ---- Runtime Stage ----
+# ---- Runtime Stage (Misma versión de Debian Bookworm para garantizar coincidencia de GLIBC) ----
 FROM debian:bookworm-slim AS runner
 
 # Instalar poppler-utils (pdftoppm) para convertir páginas PDF a imágenes PNG

@@ -1,11 +1,28 @@
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
+use std::time::Duration;
 
 pub async fn init_db(database_url: &str) -> Result<PgPool, sqlx::Error> {
-    let pool = PgPoolOptions::new()
-        .max_connections(10)
-        .connect(database_url)
-        .await?;
+    // Retry loop for database connection (up to 10 retries, 2s apart)
+    let mut retries = 10;
+    let pool = loop {
+        match PgPoolOptions::new()
+            .max_connections(10)
+            .connect(database_url)
+            .await
+        {
+            Ok(pool) => break pool,
+            Err(e) => {
+                retries -= 1;
+                if retries == 0 {
+                    tracing::error!("❌ No se pudo conectar a PostgreSQL después de varios intentos: {:?}", e);
+                    return Err(e);
+                }
+                tracing::warn!("⚠️ Aguardando a PostgreSQL... Reintentando en 2 segundos ({})", e);
+                tokio::time::sleep(Duration::from_secs(2)).await;
+            }
+        }
+    };
 
     // 1. Create users table
     sqlx::query(
