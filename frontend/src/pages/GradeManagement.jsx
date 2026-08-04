@@ -1,3 +1,7 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Sparkles, Plus, Calendar, FileText, Play, Trash2, LogOut, Upload, X, BookOpen, CheckCircle, Loader2 } from 'lucide-react';
+import ConfirmModal from '../components/ConfirmModal';
 import { clearSession } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';

@@ -1,3 +1,6 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { ShieldCheck, Mail, Lock, Eye, EyeOff, LogIn } from 'lucide-react';
 import { setSession, isSessionValid } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
