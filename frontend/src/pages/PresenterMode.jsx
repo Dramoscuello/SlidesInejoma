@@ -60,13 +60,27 @@ export default function PresenterMode() {
     };
   }, [code]);
 
-  // Broadcast ChangeSlide event when slide index changes
+  // Broadcast ChangeSlide event and re-sync slide strokes when slide index changes
   useEffect(() => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({
         type: 'CHANGE_SLIDE',
         payload: { slide_index: currentSlide }
       }));
+
+      // Re-transmit any existing strokes for the target slide
+      const existingStrokes = slideStrokes[currentSlide] || [];
+      existingStrokes.forEach(st => {
+        wsRef.current.send(JSON.stringify({
+          type: 'DRAW_STROKE',
+          payload: {
+            slide_index: currentSlide,
+            points: st.points,
+            color: st.color,
+            width: st.width
+          }
+        }));
+      });
     }
   }, [currentSlide]);
 

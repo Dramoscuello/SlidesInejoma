@@ -16,7 +16,9 @@ export default function StudentProjection() {
   const [title, setTitle] = useState('');
   const [sessionEnded, setSessionEnded] = useState(false);
   const [remotePointer, setRemotePointer] = useState(null);
-  const [remoteStrokes, setRemoteStrokes] = useState([]);
+
+  // Store strokes per slide: { [slideNumber]: ArrayOfStrokes }
+  const [slideStrokes, setSlideStrokes] = useState({});
   const [isConfirmExitOpen, setIsConfirmExitOpen] = useState(false);
 
   const wsRef = useRef(null);
@@ -73,7 +75,6 @@ export default function StudentProjection() {
           const newIndex = event.payload?.slide_index;
           if (newIndex) {
             setCurrentSlide(newIndex);
-            setRemoteStrokes([]);
             setRemotePointer(null);
           }
         } else if (event.type === 'POINTER_MOVE') {
@@ -82,10 +83,21 @@ export default function StudentProjection() {
           }
         } else if (event.type === 'DRAW_STROKE') {
           if (event.payload) {
-            setRemoteStrokes(prev => [...prev, event.payload]);
+            setSlideStrokes(prev => {
+              // Get active slide or currentSlide
+              const activeSlide = event.payload.slide_index || currentSlide;
+              const currentList = prev[activeSlide] || [];
+              return {
+                ...prev,
+                [activeSlide]: [...currentList, event.payload]
+              };
+            });
           }
         } else if (event.type === 'CLEAR_CANVAS') {
-          setRemoteStrokes([]);
+          setSlideStrokes(prev => ({
+            ...prev,
+            [currentSlide]: []
+          }));
         } else if (event.type === 'END_SESSION') {
           setSessionEnded(true);
         }
@@ -99,7 +111,7 @@ export default function StudentProjection() {
         socket.close();
       }
     };
-  }, [code]);
+  }, [code, currentSlide]);
 
   const slideUrl = presentationId
     ? `${API_URL}/uploads/${presentationId}/slide_${currentSlide}.png`
@@ -108,6 +120,8 @@ export default function StudentProjection() {
   const handleExit = () => {
     setIsConfirmExitOpen(true);
   };
+
+  const currentStrokes = slideStrokes[currentSlide] || [];
 
   return (
     <div style={{
@@ -217,7 +231,7 @@ export default function StudentProjection() {
           slideTitle={title || `Diapositiva ${currentSlide}`}
           isReadOnly={true}
           remotePointer={remotePointer}
-          strokes={remoteStrokes}
+          strokes={currentStrokes}
         />
       </main>
 
